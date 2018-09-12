@@ -1,4 +1,6 @@
 import socket
+import random
+import math
 
 
 class Server(object):
@@ -18,10 +20,11 @@ class Server(object):
     * self.room: one of 0, 1, 2, 3. This signifies which "room" the client is in,
       according to the following map:
       
-                                     3                      N
+                                     1                      N
                                      |                      ^
-                                 1 - 0 - 2                  |
-                                 
+                                 4 - 0 - 2                  |
+                                     |
+                                     3
     When a client connects, they are greeted with a welcome message. And then they can
     move through the connected rooms. For example, on connection:
     
@@ -43,7 +46,7 @@ class Server(object):
     each room have a unique description.
     """
 
-    game_name = "Realms of Venture"
+    game_name = "Realms of Lynchian Venture"
 
     def __init__(self, port=50000):
         self.input_buffer = ""
@@ -54,6 +57,7 @@ class Server(object):
         self.port = port
 
         self.room = 0
+        self.curr_desc = ""
 
     def connect(self):
         self.socket = socket.socket(
@@ -62,6 +66,8 @@ class Server(object):
             socket.IPPROTO_TCP)
 
         address = ('127.0.0.1', self.port)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    
         self.socket.bind(address)
         self.socket.listen(1)
 
@@ -72,46 +78,72 @@ class Server(object):
         For any room_number in 0, 1, 2, 3, return a string that "describes" that
         room.
 
-        Ex: `self.room_number(1)` yields "Brown wallpaper covers the walls, bathing
+        Ex: `self.room_description(1)` yields "Brown wallpaper covers the walls, bathing
         the room in warm light reflected from the half-drawn curtains."
 
         :param room_number: int
         :return: str
         """
+        obj_colors = ["grey", "crimson", "black", "yellow", "magenta"]
+        room_adjs = ["grey", "dim", "ornate", "burnt", "golden"]
+        room_objs = ["fire", "ottoman", "man", "woman", "coffee table"]
+        obj_adjs = ["silent", "sickly", "decaying", "shrieking", "lonesome"]
+        obj_verbs = ["stands", "sits", "floats", "fumes"]
+        room_pos = ["far corner", "center", "darkness", "light"]
+        room = self.rand_from_mult_seq(obj_colors, obj_adjs, room_objs,
+                                       obj_verbs, room_pos, room_adjs)
+        self.curr_desc = ("A "+room[0]+", "+room[1]+" "+room[2]+" "+room[3]+
+                          " in the "+room[4]+ " of a "+room[5]+" room.")
+        return (self.curr_desc)
 
-        # TODO: YOUR CODE HERE
+    def rand_from_mult_seq(self, *seqs):
+        """
+        For any number of sequences, take a random element from each and append 
+        the element to a list.
+        Then return the resulting list.
 
-        pass
-
+        :param *seqs: sequence
+        :return: list
+        """
+        random.seed(51)
+        all_elems = []
+        for seq in seqs:
+            all_elems.append(seq[math.floor(random.random()*len(seq))])
+        return all_elems
+    
     def greet(self):
         """
         Welcome a client to the game.
         
-        Puts a welcome message and the description of the client's current room into
-        the output buffer.
+        Puts a welcome message and the description of 
+        the client's current room into the output buffer.
         
         :return: None 
         """
-        self.output_buffer = "Welcome to {}! {}".format(
+        self.output_buffer = "Welcome to {}! \n{}".format(
             self.game_name,
             self.room_description(self.room)
         )
+        return None
 
     def get_input(self):
         """
         Retrieve input from the client_connection. All messages from the client
         should end in a newline character: '\n'.
         
-        This is a BLOCKING call. It should not return until there is some input from
-        the client to receive.
+        This is a BLOCKING call. 
+        It should not return until there is some input from the client 
+        to receive.
          
         :return: None 
         """
-
-        # TODO: YOUR CODE HERE
-
-        pass
-
+        
+        buffer_size = 4096
+        self.input_buffer = self.client_connection.recv(buffer_size).decode()
+        self.input_buffer = self.input_buffer.lower()[:-1]
+        print("C: " + self.input_buffer)
+        return None
+    
     def move(self, argument):
         """
         Moves the client from one room to another.
@@ -132,10 +164,12 @@ class Server(object):
         :param argument: str
         :return: None
         """
-
-        # TODO: YOUR CODE HERE
-
-        pass
+        print('move('+argument+')')
+        movement = {"north": 1, "south": 3, "east": 2, "west": 4}
+        self.room += movement[argument]
+        self.room = self.room % 5
+        self.output_buffer = self.room_description(self.room)
+        return None
 
     def say(self, argument):
         """
@@ -150,10 +184,9 @@ class Server(object):
         :param argument: str
         :return: None
         """
-
-        # TODO: YOUR CODE HERE
-
-        pass
+        print("say("+argument+")")
+        self.output_buffer = ('You say, "'+argument+'"'+'\n'+self.curr_desc)
+        return None
 
     def quit(self, argument):
         """
@@ -166,26 +199,31 @@ class Server(object):
         :param argument: str
         :return: None
         """
-
-        # TODO: YOUR CODE HERE
-
-        pass
+        print("quit()")
+        self.done = True
+        self.output_buffer = "Goodbye!"
+        return None
 
     def route(self):
         """
-        Examines `self.input_buffer` to perform the correct action (move, quit, or
-        say) on behalf of the client.
+        Examines `self.input_buffer` to perform the correct action 
+        (move, quit, or say) on behalf of the client.
         
-        For example, if the input buffer contains "say Is anybody here?" then `route`
-        should invoke `self.say("Is anybody here?")`. If the input buffer contains
-        "move north", then `route` should invoke `self.move("north")`.
+        For example, if the input buffer contains "say Is anybody here?", 
+        then `route` should invoke `self.say("Is anybody here?")`.
+        If the input buffer contains "move north", 
+        then `route` should invoke `self.move("north")`.
         
         :return: None
         """
-
-        # TODO: YOUR CODE HERE
-
-        pass
+        inputs = self.input_buffer.split(' ')
+        arguments = ' '.join(inputs[1:])
+        {
+            "say": self.say,
+            "quit": self.quit,
+            "move": self.move
+        }[inputs[0]](arguments)
+        return None
 
     def push_output(self):
         """
@@ -196,10 +234,9 @@ class Server(object):
         
         :return: None 
         """
-
-        # TODO: YOUR CODE HERE
-
-        pass
+        self.output_buffer = "OK! " + self.output_buffer + "\n"
+        self.client_connection.sendall(self.output_buffer.encode('utf8'))
+        return None
 
     def serve(self):
         self.connect()
