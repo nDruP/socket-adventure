@@ -105,7 +105,7 @@ class Server(object):
         :param *seqs: sequence
         :return: list
         """
-        random.seed(51)
+        random.seed()
         all_elems = []
         for seq in seqs:
             all_elems.append(seq[math.floor(random.random()*len(seq))])
@@ -124,7 +124,6 @@ class Server(object):
             self.game_name,
             self.room_description(self.room)
         )
-        return None
 
     def get_input(self):
         """
@@ -142,7 +141,6 @@ class Server(object):
         self.input_buffer = self.client_connection.recv(buffer_size).decode()
         self.input_buffer = self.input_buffer.lower()[:-1]
         print("C: " + self.input_buffer)
-        return None
     
     def move(self, argument):
         """
@@ -166,10 +164,13 @@ class Server(object):
         """
         print('move('+argument+')')
         movement = {"north": 1, "south": 3, "east": 2, "west": 4}
-        self.room += movement[argument]
-        self.room = self.room % 5
-        self.output_buffer = self.room_description(self.room)
-        return None
+        if argument not in movement:
+            self.output_buffer = ("direction unclear. "
+                                  "Please input north, south, east, or west")
+        else:
+            self.room += movement[argument]
+            self.room = self.room % 5
+            self.output_buffer = self.room_description(self.room)
 
     def say(self, argument):
         """
@@ -186,7 +187,6 @@ class Server(object):
         """
         print("say("+argument+")")
         self.output_buffer = ('You say, "'+argument+'"'+'\n'+self.curr_desc)
-        return None
 
     def quit(self, argument):
         """
@@ -202,7 +202,6 @@ class Server(object):
         print("quit()")
         self.done = True
         self.output_buffer = "Goodbye!"
-        return None
 
     def route(self):
         """
@@ -218,12 +217,15 @@ class Server(object):
         """
         inputs = self.input_buffer.split(' ')
         arguments = ' '.join(inputs[1:])
-        {
+        options = {
             "say": self.say,
             "quit": self.quit,
             "move": self.move
-        }[inputs[0]](arguments)
-        return None
+        }
+        if inputs[0] not in options:
+            self.output_buffer = "Invalid command please use say, move, or quit"
+        else:
+            options[inputs[0]](arguments)
 
     def push_output(self):
         """
@@ -234,9 +236,12 @@ class Server(object):
         
         :return: None 
         """
-        self.output_buffer = "OK! " + self.output_buffer + "\n"
-        self.client_connection.sendall(self.output_buffer.encode('utf8'))
-        return None
+        try:
+            self.output_buffer = "OK! " + self.output_buffer + "\n"
+            self.client_connection.sendall(self.output_buffer.encode('utf8'))
+        except BrokenPipeError:
+            print("Broken Pipe....... Quitting")
+            self.quit('')
 
     def serve(self):
         self.connect()
